@@ -20,17 +20,17 @@ from typing import Optional
 
 import matplotlib.pyplot as plt
 
-from evaluator import EvaluationResult
-from genetic_algorithm import Chromosome, GAResult
-from maze_loader import Maze
+from evaluador import ResultadoEvaluacion
+from algoritmo_genetico import Cromosoma, ResultadoAG
+from cargador_laberinto import Laberinto
 
 
-def plot_best_objective(ga_result: GAResult, output_dir: str, show: bool = True) -> str:
+def graficar_mejor_objetivo(resultado_ag: ResultadoAG, directorio_salida: str, mostrar: bool = True) -> str:
     """Gráfica 1: mejor J(x) global por generación, en escala logarítmica."""
     fig, ax = plt.subplots(figsize=(8, 5))
-    generations = range(1, len(ga_result.history_best_J) + 1)
+    generaciones = range(1, len(resultado_ag.historial_mejor_J) + 1)
     ax.semilogy(
-        generations, ga_result.history_best_J,
+        generaciones, resultado_ag.historial_mejor_J,
         marker="o", markersize=3, linewidth=1.2, color="#1f77b4",
     )
     ax.set_xlabel("Generación")
@@ -39,21 +39,21 @@ def plot_best_objective(ga_result: GAResult, output_dir: str, show: bool = True)
     ax.grid(True, which="both", linestyle="--", alpha=0.4)
     fig.tight_layout()
 
-    path = os.path.join(output_dir, "grafica_1_mejor_objetivo.png")
-    fig.savefig(path, dpi=150)
-    if show:
+    ruta = os.path.join(directorio_salida, "grafica_1_mejor_objetivo.png")
+    fig.savefig(ruta, dpi=150)
+    if mostrar:
         plt.show()
     else:
         plt.close(fig)
-    return path
+    return ruta
 
 
-def plot_valid_proportion(ga_result: GAResult, output_dir: str, show: bool = True) -> str:
+def graficar_proporcion_validas(resultado_ag: ResultadoAG, directorio_salida: str, mostrar: bool = True) -> str:
     """Gráfica 2: proporción de soluciones válidas en la población por generación."""
     fig, ax = plt.subplots(figsize=(8, 5))
-    generations = range(1, len(ga_result.history_valid_proportion) + 1)
+    generaciones = range(1, len(resultado_ag.historial_proporcion_valida) + 1)
     ax.plot(
-        generations, ga_result.history_valid_proportion,
+        generaciones, resultado_ag.historial_proporcion_valida,
         marker="o", markersize=3, linewidth=1.2, color="#2ca02c",
     )
     ax.set_xlabel("Generación")
@@ -63,83 +63,83 @@ def plot_valid_proportion(ga_result: GAResult, output_dir: str, show: bool = Tru
     ax.grid(True, linestyle="--", alpha=0.4)
     fig.tight_layout()
 
-    path = os.path.join(output_dir, "grafica_2_proporcion_validas.png")
-    fig.savefig(path, dpi=150)
-    if show:
+    ruta = os.path.join(directorio_salida, "grafica_2_proporcion_validas.png")
+    fig.savefig(ruta, dpi=150)
+    if mostrar:
         plt.show()
     else:
         plt.close(fig)
-    return path
+    return ruta
 
 
-def _describe_steps(evaluation: EvaluationResult) -> str:
-    if evaluation.is_valid:
-        return f"{evaluation.tau} pasos hasta la llegada válida (cromosoma de {evaluation.n} genes)"
-    return f"no alcanza la meta de forma válida (cromosoma completo de {evaluation.n} genes)"
+def _describir_pasos(evaluacion: ResultadoEvaluacion) -> str:
+    if evaluacion.es_valido:
+        return f"{evaluacion.tau} pasos hasta la llegada válida (cromosoma de {evaluacion.n} genes)"
+    return f"no alcanza la meta de forma válida (cromosoma completo de {evaluacion.n} genes)"
 
 
-def print_best_chromosomes_report(ga_result: GAResult) -> None:
+def imprimir_reporte_mejores_cromosomas(resultado_ag: ResultadoAG) -> None:
     """Consola/Texto: lista detallada de cromosomas únicos con el mejor J(x)."""
-    best_unique = ga_result.best_unique_chromosomes()
+    mejores_unicos = resultado_ag.cromosomas_unicos_mejores()
 
     print("=" * 78)
     print("CONSOLA / TEXTO — Cromosomas únicos con el mejor valor objetivo")
     print("=" * 78)
-    print(f"Mejor valor de función objetivo encontrado: J* = {ga_result.best_evaluation.J}")
-    print(f"Fitness asociado:                          phi* = {ga_result.best_evaluation.phi}")
-    print(f"Cantidad de cromosomas únicos que alcanzan J*:  {len(best_unique)}")
-    print(f"Solución válida:                            {ga_result.best_evaluation.is_valid}")
+    print(f"Mejor valor de función objetivo encontrado: J* = {resultado_ag.mejor_evaluacion.J}")
+    print(f"Fitness asociado:                          phi* = {resultado_ag.mejor_evaluacion.phi}")
+    print(f"Cantidad de cromosomas únicos que alcanzan J*:  {len(mejores_unicos)}")
+    print(f"Solución válida:                            {resultado_ag.mejor_evaluacion.es_valido}")
     print("-" * 78)
-    for idx, (chromosome, evaluation) in enumerate(best_unique.items(), start=1):
-        print(f"[{idx}] Cromosoma: {''.join(chromosome)}")
-        print(f"      {_describe_steps(evaluation)}")
+    for idx, (cromosoma, evaluacion) in enumerate(mejores_unicos.items(), start=1):
+        print(f"[{idx}] Cromosoma: {''.join(cromosoma)}")
+        print(f"      {_describir_pasos(evaluacion)}")
         print(
-            f"      D(x)={evaluation.D}  tau(x)={evaluation.tau}  "
-            f"choques={evaluation.collision_count}  "
-            f"pausas_intermedias={evaluation.Q_intermediate_count}  "
-            f"acciones_post_meta={evaluation.post_goal_active_count}  "
-            f"bloques_giro={list(evaluation.turn_blocks)}"
+            f"      D(x)={evaluacion.D}  tau(x)={evaluacion.tau}  "
+            f"choques={evaluacion.conteo_choques}  "
+            f"pausas_intermedias={evaluacion.conteo_Q_intermedio}  "
+            f"acciones_post_meta={evaluacion.conteo_acciones_post_meta}  "
+            f"bloques_giro={list(evaluacion.bloques_giro)}"
         )
     print("=" * 78)
 
 
-def print_audited_trajectory(chromosome: Chromosome, evaluation: EvaluationResult, maze: Maze) -> None:
+def imprimir_trayectoria_auditada(cromosoma: Cromosoma, evaluacion: ResultadoEvaluacion, laberinto: Laberinto) -> None:
     """Consola/Auditoría: trayectoria paso a paso en coordenadas (X, Y), 1-indexadas.
 
     X corresponde a la columna del mapa; Y corresponde a la fila.
     """
     print("-" * 78)
-    print(f"CONSOLA / AUDITORÍA — trayectoria de {''.join(chromosome)}")
+    print(f"CONSOLA / AUDITORÍA — trayectoria de {''.join(cromosoma)}")
     print("-" * 78)
 
-    start_i, start_j = maze.start
-    print(f"Paso 0 (inicio): (X={start_j + 1}, Y={start_i + 1})  dirección=S")
+    fila_inicio, columna_inicio = laberinto.salida
+    print(f"Paso 0 (inicio): (X={columna_inicio + 1}, Y={fila_inicio + 1})  dirección=S")
 
-    for rec in evaluation.trajectory:
-        i, j = rec.position_after
-        nota = "  [CHOQUE: movimiento bloqueado]" if (rec.gene == "M" and rec.collided) else ""
+    for registro in evaluacion.trayectoria:
+        i, j = registro.posicion_despues
+        nota = "  [CHOQUE: movimiento bloqueado]" if (registro.gen == "M" and registro.choco) else ""
         print(
-            f"Paso {rec.step_index:>3}: gen={rec.gene}  "
-            f"(X={j + 1}, Y={i + 1})  dirección={rec.direction_after}{nota}"
+            f"Paso {registro.indice_paso:>3}: gen={registro.gen}  "
+            f"(X={j + 1}, Y={i + 1})  dirección={registro.direccion_despues}{nota}"
         )
     print("-" * 78)
 
 
-def generate_full_report(ga_result: GAResult, output_dir: Optional[str] = "resultados",
-                          show_plots: bool = True) -> None:
+def generar_reporte_completo(resultado_ag: ResultadoAG, directorio_salida: Optional[str] = "resultados",
+                              mostrar_graficas: bool = True) -> None:
     """Genera el conjunto completo de resultados mínimos exigidos por la pauta."""
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
-        path1 = plot_best_objective(ga_result, output_dir, show=show_plots)
-        path2 = plot_valid_proportion(ga_result, output_dir, show=show_plots)
-        print(f"Gráfica 1 (mejor objetivo, escala log) guardada en: {path1}")
-        print(f"Gráfica 2 (proporción de válidas) guardada en:      {path2}")
+    if directorio_salida:
+        os.makedirs(directorio_salida, exist_ok=True)
+        ruta1 = graficar_mejor_objetivo(resultado_ag, directorio_salida, mostrar=mostrar_graficas)
+        ruta2 = graficar_proporcion_validas(resultado_ag, directorio_salida, mostrar=mostrar_graficas)
+        print(f"Gráfica 1 (mejor objetivo, escala log) guardada en: {ruta1}")
+        print(f"Gráfica 2 (proporción de válidas) guardada en:      {ruta2}")
         print()
 
-    print_best_chromosomes_report(ga_result)
+    imprimir_reporte_mejores_cromosomas(resultado_ag)
     print()
 
-    best_unique = ga_result.best_unique_chromosomes()
-    for chromosome, evaluation in best_unique.items():
-        print_audited_trajectory(chromosome, evaluation, ga_result.maze)
+    mejores_unicos = resultado_ag.cromosomas_unicos_mejores()
+    for cromosoma, evaluacion in mejores_unicos.items():
+        imprimir_trayectoria_auditada(cromosoma, evaluacion, resultado_ag.laberinto)
         print()

@@ -16,52 +16,52 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Tuple
 
-from maze_loader import Maze, Position
+from cargador_laberinto import Laberinto, Posicion
 
-Chromosome = Tuple[str, ...]
+Cromosoma = Tuple[str, ...]
 
-ACTIONS: Tuple[str, ...] = ("H", "A", "M", "Q")
-DIRECTIONS: Tuple[str, ...] = ("N", "E", "S", "O")
-DIRECTION_VECTORS = {
+ACCIONES: Tuple[str, ...] = ("H", "A", "M", "Q")
+DIRECCIONES: Tuple[str, ...] = ("N", "E", "S", "O")
+VECTORES_DIRECCION = {
     "N": (-1, 0),
     "E": (0, 1),
     "S": (1, 0),
     "O": (0, -1),
 }
-INITIAL_DIRECTION = "S"
+DIRECCION_INICIAL = "S"
 
 
 @dataclass(frozen=True)
-class StepRecord:
+class RegistroPaso:
     """Registro auditable de un paso t de ejecución del cromosoma."""
 
-    step_index: int  # t, 1-indexado (para reportes)
-    gene: str
-    position_before: Position  # p_{t-1}
-    position_after: Position  # p_t
-    direction_before: str  # d_{t-1}
-    direction_after: str  # d_t
-    collided: bool  # True si el gen fue M y el intento de avance falló
+    indice_paso: int  # t, 1-indexado (para reportes)
+    gen: str
+    posicion_antes: Posicion  # p_{t-1}
+    posicion_despues: Posicion  # p_t
+    direccion_antes: str  # d_{t-1}
+    direccion_despues: str  # d_t
+    choco: bool  # True si el gen fue M y el intento de avance falló
 
 
 @dataclass(frozen=True)
-class SimulationResult:
-    trajectory: Tuple[StepRecord, ...]
-    final_position: Position
-    final_direction: str
+class ResultadoSimulacion:
+    trayectoria: Tuple[RegistroPaso, ...]
+    posicion_final: Posicion
+    direccion_final: str
 
 
-def _turn_clockwise(direction: str) -> str:
-    idx = DIRECTIONS.index(direction)
-    return DIRECTIONS[(idx + 1) % 4]
+def _girar_horario(direccion: str) -> str:
+    idx = DIRECCIONES.index(direccion)
+    return DIRECCIONES[(idx + 1) % 4]
 
 
-def _turn_counterclockwise(direction: str) -> str:
-    idx = DIRECTIONS.index(direction)
-    return DIRECTIONS[(idx - 1) % 4]
+def _girar_antihorario(direccion: str) -> str:
+    idx = DIRECCIONES.index(direccion)
+    return DIRECCIONES[(idx - 1) % 4]
 
 
-def simulate_chromosome(chromosome: Chromosome, maze: Maze) -> SimulationResult:
+def simular_cromosoma(cromosoma: Cromosoma, laberinto: Laberinto) -> ResultadoSimulacion:
     """Simula la ejecución completa de un cromosoma sobre el laberinto dado.
 
     p_0 = s (salida), d_0 = S (sur). Para cada gen g_t:
@@ -72,48 +72,48 @@ def simulate_chromosome(chromosome: Chromosome, maze: Maze) -> SimulationResult:
            dentro de límites, avanza (p_t = p~_t); si no, p_t = p_{t-1}
            y se registra un choque.
     """
-    position: Position = maze.start
-    direction = INITIAL_DIRECTION
-    trajectory: List[StepRecord] = []
+    posicion: Posicion = laberinto.salida
+    direccion = DIRECCION_INICIAL
+    trayectoria: List[RegistroPaso] = []
 
-    for t, gene in enumerate(chromosome, start=1):
-        pos_before = position
-        dir_before = direction
-        collided = False
+    for t, gen in enumerate(cromosoma, start=1):
+        posicion_antes = posicion
+        direccion_antes = direccion
+        choco = False
 
-        if gene == "H":
-            direction = _turn_clockwise(direction)
-        elif gene == "A":
-            direction = _turn_counterclockwise(direction)
-        elif gene == "Q":
+        if gen == "H":
+            direccion = _girar_horario(direccion)
+        elif gen == "A":
+            direccion = _girar_antihorario(direccion)
+        elif gen == "Q":
             pass
-        elif gene == "M":
-            dr, dc = DIRECTION_VECTORS[direction]
-            tentative: Position = (position[0] + dr, position[1] + dc)
-            if maze.is_transitable(tentative):
-                position = tentative
+        elif gen == "M":
+            dr, dc = VECTORES_DIRECCION[direccion]
+            posicion_tentativa: Posicion = (posicion[0] + dr, posicion[1] + dc)
+            if laberinto.es_transitable(posicion_tentativa):
+                posicion = posicion_tentativa
             else:
-                collided = True
+                choco = True
         else:
             raise ValueError(
-                f"Gen inválido detectado en el cromosoma: {gene!r}. "
-                f"Se esperaba uno de {ACTIONS}."
+                f"Gen inválido detectado en el cromosoma: {gen!r}. "
+                f"Se esperaba uno de {ACCIONES}."
             )
 
-        trajectory.append(
-            StepRecord(
-                step_index=t,
-                gene=gene,
-                position_before=pos_before,
-                position_after=position,
-                direction_before=dir_before,
-                direction_after=direction,
-                collided=collided,
+        trayectoria.append(
+            RegistroPaso(
+                indice_paso=t,
+                gen=gen,
+                posicion_antes=posicion_antes,
+                posicion_despues=posicion,
+                direccion_antes=direccion_antes,
+                direccion_despues=direccion,
+                choco=choco,
             )
         )
 
-    return SimulationResult(
-        trajectory=tuple(trajectory),
-        final_position=position,
-        final_direction=direction,
+    return ResultadoSimulacion(
+        trayectoria=tuple(trayectoria),
+        posicion_final=posicion,
+        direccion_final=direccion,
     )

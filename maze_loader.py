@@ -28,39 +28,39 @@ from pathlib import Path
 from typing import List, Tuple
 
 # --- Símbolos del alfabeto del laberinto ---
-WALL = "X"
-FREE = "0"
-START = "1"
-GOAL = "2"
-VALID_SYMBOLS = {FREE, START, GOAL, WALL}
+MURO = "X"
+LIBRE = "0"
+SIMBOLO_SALIDA = "1"
+SIMBOLO_LLEGADA = "2"
+SIMBOLOS_VALIDOS = {LIBRE, SIMBOLO_SALIDA, SIMBOLO_LLEGADA, MURO}
 
-Position = Tuple[int, int]
+Posicion = Tuple[int, int]
 
 
-class MazeValidationError(ValueError):
+class ErrorValidacionLaberinto(ValueError):
     """Error específico de validación estructural del laberinto."""
 
 
 @dataclass(frozen=True)
-class Maze:
+class Laberinto:
     """Representación inmutable y validada de un laberinto.
 
     Atributos
     ---------
-    grid: matriz L, 0-indexada, de tamaño n_rows x n_cols.
-    n_rows: número de filas, m.
-    n_cols: número de columnas, r.
-    start: posición (i_s, j_s) de la salida, 0-indexada.
-    goal: posición (i_z, j_z) de la llegada, 0-indexada.
+    cuadricula: matriz L, 0-indexada, de tamaño num_filas x num_columnas.
+    num_filas: número de filas, m.
+    num_columnas: número de columnas, r.
+    salida: posición (i_s, j_s) de la salida, 0-indexada.
+    llegada: posición (i_z, j_z) de la llegada, 0-indexada.
     """
 
-    grid: Tuple[Tuple[str, ...], ...]
-    n_rows: int
-    n_cols: int
-    start: Position
-    goal: Position
+    cuadricula: Tuple[Tuple[str, ...], ...]
+    num_filas: int
+    num_columnas: int
+    salida: Posicion
+    llegada: Posicion
 
-    def in_bounds(self, pos: Position) -> bool:
+    def dentro_de_limites(self, pos: Posicion) -> bool:
         """Verifica que una posición esté dentro de los límites de la matriz.
 
         El motor de ejecución debe invocar siempre esta función antes de
@@ -68,120 +68,120 @@ class Maze:
         salir del laberinto.
         """
         i, j = pos
-        return 0 <= i < self.n_rows and 0 <= j < self.n_cols
+        return 0 <= i < self.num_filas and 0 <= j < self.num_columnas
 
-    def is_wall(self, pos: Position) -> bool:
+    def es_muro(self, pos: Posicion) -> bool:
         i, j = pos
-        return self.grid[i][j] == WALL
+        return self.cuadricula[i][j] == MURO
 
-    def is_transitable(self, pos: Position) -> bool:
+    def es_transitable(self, pos: Posicion) -> bool:
         """Una celda es transitable si está dentro de los límites y no es muro.
 
         Las celdas con símbolo 0, 1 o 2 se consideran transitables.
         """
-        return self.in_bounds(pos) and not self.is_wall(pos)
+        return self.dentro_de_limites(pos) and not self.es_muro(pos)
 
 
-def _read_raw_grid(path: str | Path) -> List[List[str]]:
+def _leer_cuadricula_cruda(ruta: str | Path) -> List[List[str]]:
     """Lee el archivo CSV y retorna una matriz de strings, validando forma rectangular."""
-    path = Path(path)
-    if not path.exists():
+    ruta = Path(ruta)
+    if not ruta.exists():
         raise FileNotFoundError(
-            f"No se encontró el archivo CSV del laberinto en la ruta indicada: {path}"
+            f"No se encontró el archivo CSV del laberinto en la ruta indicada: {ruta}"
         )
 
-    rows: List[List[str]] = []
-    with path.open(newline="", encoding="utf-8-sig") as f:
-        reader = csv.reader(f)
-        for raw_row in reader:
+    filas: List[List[str]] = []
+    with ruta.open(newline="", encoding="utf-8-sig") as f:
+        lector = csv.reader(f)
+        for fila_cruda in lector:
             # Se descartan celdas vacías generadas por comas finales o espacios sobrantes.
-            cleaned = [cell.strip() for cell in raw_row if cell.strip() != ""]
-            if cleaned:
-                rows.append(cleaned)
+            limpia = [celda.strip() for celda in fila_cruda if celda.strip() != ""]
+            if limpia:
+                filas.append(limpia)
 
-    if not rows:
-        raise MazeValidationError("El archivo CSV está vacío o no contiene celdas válidas.")
+    if not filas:
+        raise ErrorValidacionLaberinto("El archivo CSV está vacío o no contiene celdas válidas.")
 
-    lengths = {len(row) for row in rows}
-    if len(lengths) != 1:
-        raise MazeValidationError(
+    longitudes = {len(fila) for fila in filas}
+    if len(longitudes) != 1:
+        raise ErrorValidacionLaberinto(
             "El laberinto debe ser rectangular: todas las filas deben tener la misma "
-            f"cantidad de columnas. Longitudes de fila encontradas: {sorted(lengths)}."
+            f"cantidad de columnas. Longitudes de fila encontradas: {sorted(longitudes)}."
         )
 
-    return rows
+    return filas
 
 
-def _validate_symbols(grid: Tuple[Tuple[str, ...], ...]) -> None:
-    invalid = [
-        (i, j, cell)
-        for i, row in enumerate(grid)
-        for j, cell in enumerate(row)
-        if cell not in VALID_SYMBOLS
+def _validar_simbolos(cuadricula: Tuple[Tuple[str, ...], ...]) -> None:
+    invalidas = [
+        (i, j, celda)
+        for i, fila in enumerate(cuadricula)
+        for j, celda in enumerate(fila)
+        if celda not in SIMBOLOS_VALIDOS
     ]
-    if invalid:
-        raise MazeValidationError(
-            f"Símbolos inválidos en el laberinto. Solo se permiten {sorted(VALID_SYMBOLS)}. "
-            f"Celdas problemáticas (fila, columna, símbolo) [0-indexado]: {invalid}"
+    if invalidas:
+        raise ErrorValidacionLaberinto(
+            f"Símbolos inválidos en el laberinto. Solo se permiten {sorted(SIMBOLOS_VALIDOS)}. "
+            f"Celdas problemáticas (fila, columna, símbolo) [0-indexado]: {invalidas}"
         )
 
 
-def _validate_perimeter(grid: Tuple[Tuple[str, ...], ...], m: int, r: int) -> None:
+def _validar_perimetro(cuadricula: Tuple[Tuple[str, ...], ...], m: int, r: int) -> None:
     """Garantiza L[i,j] = X si i=1 v i=m v j=1 v j=r (en notación 1-indexada);
     equivalente 0-indexado: i=0 v i=m-1 v j=0 v j=r-1."""
-    errors = [
+    errores = [
         (i, j)
         for i in range(m)
         for j in range(r)
-        if (i == 0 or i == m - 1 or j == 0 or j == r - 1) and grid[i][j] != WALL
+        if (i == 0 or i == m - 1 or j == 0 or j == r - 1) and cuadricula[i][j] != MURO
     ]
-    if errors:
-        raise MazeValidationError(
+    if errores:
+        raise ErrorValidacionLaberinto(
             "El perímetro completo del laberinto debe estar compuesto por muros ('X'). "
-            f"Celdas perimetrales inválidas (0-indexadas): {errors}"
+            f"Celdas perimetrales inválidas (0-indexadas): {errores}"
         )
 
 
-def _find_unique_symbol(
-    grid: Tuple[Tuple[str, ...], ...], symbol: str, m: int, r: int, label: str
-) -> Position:
-    found = [(i, j) for i in range(m) for j in range(r) if grid[i][j] == symbol]
-    if len(found) == 0:
-        raise MazeValidationError(
-            f"No se encontró ninguna celda con símbolo '{symbol}' ({label}). "
+def _encontrar_simbolo_unico(
+    cuadricula: Tuple[Tuple[str, ...], ...], simbolo: str, m: int, r: int, etiqueta: str
+) -> Posicion:
+    encontrados = [(i, j) for i in range(m) for j in range(r) if cuadricula[i][j] == simbolo]
+    if len(encontrados) == 0:
+        raise ErrorValidacionLaberinto(
+            f"No se encontró ninguna celda con símbolo '{simbolo}' ({etiqueta}). "
             "Debe existir exactamente una."
         )
-    if len(found) > 1:
-        raise MazeValidationError(
-            f"Se encontraron {len(found)} celdas con símbolo '{symbol}' ({label}); "
-            f"debe existir exactamente una. Posiciones (0-indexadas): {found}"
+    if len(encontrados) > 1:
+        raise ErrorValidacionLaberinto(
+            f"Se encontraron {len(encontrados)} celdas con símbolo '{simbolo}' ({etiqueta}); "
+            f"debe existir exactamente una. Posiciones (0-indexadas): {encontrados}"
         )
-    return found[0]
+    return encontrados[0]
 
 
-def _validate_extremes_location(start: Position, goal: Position, m: int) -> None:
+def _validar_ubicacion_extremos(salida: Posicion, llegada: Posicion, m: int) -> None:
     """Valida i_s = 2 y i_z = m-1 en notación 1-indexada del enunciado.
 
     Equivalente 0-indexado: fila de salida == 1, fila de llegada == m-2.
     """
-    i_s, _ = start
-    i_z, _ = goal
+    i_s, _ = salida
+    i_z, _ = llegada
 
     if i_s != 1:
-        raise MazeValidationError(
+        raise ErrorValidacionLaberinto(
             "La salida debe ubicarse en la primera fila interior válida "
             f"(fila 2 en notación 1-indexada; índice 1 en 0-indexada). "
             f"Se encontró en la fila 0-indexada {i_s}."
         )
     if i_z != m - 2:
-        raise MazeValidationError(
+        raise ErrorValidacionLaberinto(
             "La llegada debe ubicarse en la última fila interior válida "
             f"(fila m-1 en notación 1-indexada; índice m-2 en 0-indexada). "
             f"Se encontró en la fila 0-indexada {i_z}, se esperaba {m - 2}."
         )
 
 
-def _moore_neighbors(pos: Position) -> List[Position]:
+def _vecinos_moore(pos: Posicion) -> List[Posicion]:
     i, j = pos
     return [
         (i + di, j + dj)
@@ -191,55 +191,57 @@ def _moore_neighbors(pos: Position) -> List[Position]:
     ]
 
 
-def _is_interior(pos: Position, m: int, r: int) -> bool:
+def _es_interior(pos: Posicion, m: int, r: int) -> bool:
     """Pertenece al conjunto interior I = {2,...,m-1} x {2,...,r-1} (1-indexado),
     equivalente 0-indexado: {1,...,m-2} x {1,...,r-2}."""
     i, j = pos
     return 1 <= i <= m - 2 and 1 <= j <= r - 2
 
 
-def _validate_clear_zone(
-    grid: Tuple[Tuple[str, ...], ...], pos: Position, m: int, r: int, label: str
+def _validar_zona_despejada(
+    cuadricula: Tuple[Tuple[str, ...], ...], pos: Posicion, m: int, r: int, etiqueta: str
 ) -> None:
     """Valida que N_8(pos) ∩ I no contenga muros, para pos en {salida, llegada}."""
-    for neighbor in _moore_neighbors(pos):
-        if _is_interior(neighbor, m, r) and grid[neighbor[0]][neighbor[1]] == WALL:
-            raise MazeValidationError(
-                f"La zona interior alrededor de {label} (posición 0-indexada {pos}) "
-                f"contiene un muro en la celda vecina interior {neighbor}. "
+    for vecino in _vecinos_moore(pos):
+        if _es_interior(vecino, m, r) and cuadricula[vecino[0]][vecino[1]] == MURO:
+            raise ErrorValidacionLaberinto(
+                f"La zona interior alrededor de {etiqueta} (posición 0-indexada {pos}) "
+                f"contiene un muro en la celda vecina interior {vecino}. "
                 "El vecindario de Moore interior debe estar despejado."
             )
 
 
-def load_maze_csv(path: str | Path) -> Maze:
+def cargar_laberinto_csv(ruta: str | Path) -> Laberinto:
     """Carga, valida y retorna un laberinto a partir de un archivo CSV.
 
-    Lanza FileNotFoundError o MazeValidationError con mensajes descriptivos
+    Lanza FileNotFoundError o ErrorValidacionLaberinto con mensajes descriptivos
     ante cualquier incumplimiento de las reglas estrictas de la pauta.
     """
-    raw = _read_raw_grid(path)
-    grid: Tuple[Tuple[str, ...], ...] = tuple(tuple(row) for row in raw)
-    m = len(grid)
-    r = len(grid[0])
+    crudo = _leer_cuadricula_cruda(ruta)
+    cuadricula: Tuple[Tuple[str, ...], ...] = tuple(tuple(fila) for fila in crudo)
+    m = len(cuadricula)
+    r = len(cuadricula[0])
 
     if m < 5 or r < 5:
         # Se requiere al menos 1 fila de perímetro + 1 fila interior a cada lado
         # más separación entre salida y llegada; 5x5 es el mínimo estructuralmente
         # razonable (perímetro + salida + al menos una fila intermedia + llegada + perímetro).
-        raise MazeValidationError(
+        raise ErrorValidacionLaberinto(
             f"El laberinto debe tener al menos 5 filas y 5 columnas para admitir "
             f"perímetro, salida y llegada en filas interiores distintas. Se recibió {m}x{r}."
         )
 
-    _validate_symbols(grid)
-    _validate_perimeter(grid, m, r)
+    _validar_simbolos(cuadricula)
+    _validar_perimetro(cuadricula, m, r)
 
-    start = _find_unique_symbol(grid, START, m, r, "salida")
-    goal = _find_unique_symbol(grid, GOAL, m, r, "llegada")
+    salida = _encontrar_simbolo_unico(cuadricula, SIMBOLO_SALIDA, m, r, "salida")
+    llegada = _encontrar_simbolo_unico(cuadricula, SIMBOLO_LLEGADA, m, r, "llegada")
 
-    _validate_extremes_location(start, goal, m)
+    _validar_ubicacion_extremos(salida, llegada, m)
 
-    _validate_clear_zone(grid, start, m, r, "la salida")
-    _validate_clear_zone(grid, goal, m, r, "la llegada")
+    _validar_zona_despejada(cuadricula, salida, m, r, "la salida")
+    _validar_zona_despejada(cuadricula, llegada, m, r, "la llegada")
 
-    return Maze(grid=grid, n_rows=m, n_cols=r, start=start, goal=goal)
+    return Laberinto(
+        cuadricula=cuadricula, num_filas=m, num_columnas=r, salida=salida, llegada=llegada
+    )

@@ -16,12 +16,12 @@ from __future__ import annotations
 import argparse
 import sys
 
-from maze_loader import load_maze_csv, MazeValidationError
-from genetic_algorithm import run_genetic_algorithm, GAParameterError
-from visualization import generate_full_report
+from cargador_laberinto import cargar_laberinto_csv, ErrorValidacionLaberinto
+from algoritmo_genetico import ejecutar_algoritmo_genetico, ErrorParametroAG
+from visualizacion import generar_reporte_completo
 
 
-def build_arg_parser() -> argparse.ArgumentParser:
+def construir_parser_argumentos() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Algoritmo Genético para la resolución de laberintos (INFO-1159)."
     )
@@ -41,40 +41,44 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--ps", type=float, required=True, help="Presión selectiva (0 a 1, exclusivo)."
     )
     parser.add_argument(
-        "--seed", type=int, required=True, help="Semilla aleatoria para reproducibilidad."
+        "--seed", type=int, required=True, dest="semilla",
+        help="Semilla aleatoria para reproducibilidad.",
     )
     parser.add_argument(
-        "--output-dir", type=str, default="resultados",
+        "--output-dir", type=str, default="resultados", dest="directorio_salida",
         help="Directorio donde se guardarán las gráficas generadas (default: 'resultados').",
     )
     parser.add_argument(
-        "--no-show", action="store_true",
+        "--no-show", action="store_true", dest="no_mostrar",
         help="No desplegar las gráficas interactivamente (solo guardarlas en disco).",
     )
     return parser
 
 
-def main() -> int:
-    parser = build_arg_parser()
+def principal() -> int:
+    parser = construir_parser_argumentos()
     args = parser.parse_args()
 
     try:
-        maze = load_maze_csv(args.csv)
-    except (FileNotFoundError, MazeValidationError) as exc:
+        laberinto = cargar_laberinto_csv(args.csv)
+    except (FileNotFoundError, ErrorValidacionLaberinto) as exc:
         print(f"ERROR al cargar el laberinto: {exc}", file=sys.stderr)
         return 1
 
     try:
-        ga_result = run_genetic_algorithm(
-            maze=maze, n=args.n, pm=args.pm, N=args.N, G=args.G, ps=args.ps, seed=args.seed,
+        resultado_ag = ejecutar_algoritmo_genetico(
+            laberinto=laberinto, n=args.n, pm=args.pm, N=args.N, G=args.G,
+            ps=args.ps, semilla=args.semilla,
         )
-    except GAParameterError as exc:
+    except ErrorParametroAG as exc:
         print(f"ERROR en los parámetros del algoritmo genético: {exc}", file=sys.stderr)
         return 1
 
-    generate_full_report(ga_result, output_dir=args.output_dir, show_plots=not args.no_show)
+    generar_reporte_completo(
+        resultado_ag, directorio_salida=args.directorio_salida, mostrar_graficas=not args.no_mostrar
+    )
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(principal())

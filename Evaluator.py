@@ -16,7 +16,7 @@ Notas de diseño e interpretación (documentadas para la defensa oral)
    P_inv(x) = 10.000 * I_inv(x). Se adopta ese valor (10.000) como
    constante por defecto, ya que corresponde a la fuente matemática
    completa y auditable. El valor es un parámetro nombrado
-   (PENALTY_GLOBAL_INVALID) fácilmente ajustable si la cátedra confirma
+   (PENALIZACION_GLOBAL_INVALIDA) fácilmente ajustable si la cátedra confirma
    un valor distinto (p. ej. 100.000).
 
 2) Bloques de giros (P_R): un bloque se cierra (se agrega a B(x)) cada
@@ -31,18 +31,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Tuple
 
-from maze_loader import Maze, Position
-from simulator import Chromosome, SimulationResult, StepRecord
+from cargador_laberinto import Laberinto, Posicion
+from simulador import Cromosoma, ResultadoSimulacion, RegistroPaso
 
 # --- Constantes de penalización (parametrizadas como constantes con nombre) ---
-PENALTY_INTERMEDIATE_PAUSE = 10       # P_Q: por cada Q intermedio
-PENALTY_COLLISION = 30                # P_C: por cada choque (M fallido)
-PENALTY_POST_GOAL_ACTIVE = 100        # P_A: por cada acción activa tras la meta
-PENALTY_PREMATURE_STOP_PER_Q = 10     # P_prem: por cada Q de la cola final (si inválido)
-PENALTY_GLOBAL_INVALID = 10_000       # P_inv: penalización global si no es solución válida
+PENALIZACION_PAUSA_INTERMEDIA = 10        # P_Q: por cada Q intermedio
+PENALIZACION_CHOQUE = 30                  # P_C: por cada choque (M fallido)
+PENALIZACION_ACCION_POST_META = 100       # P_A: por cada acción activa tras la meta
+PENALIZACION_DETENCION_PREMATURA_POR_Q = 10  # P_prem: por cada Q de la cola final (si inválido)
+PENALIZACION_GLOBAL_INVALIDA = 10_000     # P_inv: penalización global si no es solución válida
 
 
-def turn_block_penalty(b: int) -> int:
+def penalizacion_bloque_giro(b: int) -> int:
     """f(b): penalización de un bloque de giros de longitud b.
 
     f(b) = 0        si b <= 1
@@ -60,26 +60,26 @@ def turn_block_penalty(b: int) -> int:
 
 
 @dataclass(frozen=True)
-class EvaluationResult:
+class ResultadoEvaluacion:
     """Resultado completo de evaluar un cromosoma sobre un laberinto."""
 
-    chromosome: Chromosome
+    cromosoma: Cromosoma
     n: int
-    final_position: Position
-    goal: Position
+    posicion_final: Posicion
+    llegada: Posicion
 
-    D: int                      # Distancia de Manhattan final
-    arrivals: Tuple[int, ...]   # T_z(x): pasos (1-indexados) de llegada efectiva
-    l: int | None               # ℓ(x): última llegada efectiva (o None)
-    tau: int                    # τ(x)
-    is_valid: bool              # Solución válida completa
-    rho: int                    # 0, 1 o 2 (prioridad de factibilidad)
+    D: int                        # Distancia de Manhattan final
+    llegadas: Tuple[int, ...]     # T_z(x): pasos (1-indexados) de llegada efectiva
+    l: int | None                 # ℓ(x): última llegada efectiva (o None)
+    tau: int                      # τ(x)
+    es_valido: bool               # Solución válida completa
+    rho: int                      # 0, 1 o 2 (prioridad de factibilidad)
 
-    Q_intermediate_count: int
-    collision_count: int
-    turn_blocks: Tuple[int, ...]
-    post_goal_active_count: int
-    Q_premature_count: int
+    conteo_Q_intermedio: int
+    conteo_choques: int
+    bloques_giro: Tuple[int, ...]
+    conteo_acciones_post_meta: int
+    conteo_Q_prematuro: int
 
     P_Q: float
     P_C: float
@@ -91,57 +91,57 @@ class EvaluationResult:
     J: float
     phi: float
 
-    trajectory: Tuple[StepRecord, ...]
+    trayectoria: Tuple[RegistroPaso, ...]
 
-    def ranking_key(self) -> Tuple[int, float, int, int]:
+    def clave_ranking(self) -> Tuple[int, float, int, int]:
         """Clave lexicográfica (rho(x), J(x), D(x), tau(x)) para el ranking evolutivo."""
         return (self.rho, self.J, self.D, self.tau)
 
 
-def _compute_manhattan_distance(final_position: Position, goal: Position) -> int:
-    return abs(final_position[0] - goal[0]) + abs(final_position[1] - goal[1])
+def _calcular_distancia_manhattan(posicion_final: Posicion, llegada: Posicion) -> int:
+    return abs(posicion_final[0] - llegada[0]) + abs(posicion_final[1] - llegada[1])
 
 
-def _compute_arrivals(trajectory: Tuple[StepRecord, ...], goal: Position) -> Tuple[int, ...]:
+def _calcular_llegadas(trayectoria: Tuple[RegistroPaso, ...], llegada: Posicion) -> Tuple[int, ...]:
     """T_z(x) = {t : p_{t-1} != z ^ p_t = z}."""
     return tuple(
-        rec.step_index
-        for rec in trajectory
-        if rec.position_before != goal and rec.position_after == goal
+        registro.indice_paso
+        for registro in trayectoria
+        if registro.posicion_antes != llegada and registro.posicion_despues == llegada
     )
 
 
-def _compute_tau(
-    arrivals: Tuple[int, ...], trajectory: Tuple[StepRecord, ...], n: int
+def _calcular_tau(
+    llegadas: Tuple[int, ...], trayectoria: Tuple[RegistroPaso, ...], n: int
 ) -> Tuple[int, bool, int | None]:
     """Calcula (tau(x), es_valido, ell(x))."""
-    if not arrivals:
+    if not llegadas:
         return n + 1, False, None
 
-    l_val = max(arrivals)
-    if l_val < n and all(trajectory[k].gene == "Q" for k in range(l_val, n)):
-        return l_val, True, l_val
-    return n + 1, False, l_val
+    valor_l = max(llegadas)
+    if valor_l < n and all(trayectoria[k].gen == "Q" for k in range(valor_l, n)):
+        return valor_l, True, valor_l
+    return n + 1, False, valor_l
 
 
-def _compute_intermediate_pauses(chromosome: Chromosome) -> int:
+def _calcular_pausas_intermedias(cromosoma: Cromosoma) -> int:
     """Q_int(x) = #{k in {1,...,n-1} : g_k = Q ^ exists j>k con g_j != Q}."""
-    n = len(chromosome)
-    last_non_q_idx: int | None = None
+    n = len(cromosoma)
+    ultimo_indice_no_q: int | None = None
     for idx in range(n - 1, -1, -1):
-        if chromosome[idx] != "Q":
-            last_non_q_idx = idx
+        if cromosoma[idx] != "Q":
+            ultimo_indice_no_q = idx
             break
-    if last_non_q_idx is None:
+    if ultimo_indice_no_q is None:
         return 0  # todos los genes son Q: no existe "parte activa" posterior
-    return sum(1 for idx in range(0, last_non_q_idx) if chromosome[idx] == "Q")
+    return sum(1 for idx in range(0, ultimo_indice_no_q) if cromosoma[idx] == "Q")
 
 
-def _compute_collisions(trajectory: Tuple[StepRecord, ...]) -> int:
-    return sum(1 for rec in trajectory if rec.collided)
+def _calcular_choques(trayectoria: Tuple[RegistroPaso, ...]) -> int:
+    return sum(1 for registro in trayectoria if registro.choco)
 
 
-def _compute_turn_blocks(trajectory: Tuple[StepRecord, ...]) -> Tuple[int, ...]:
+def _calcular_bloques_giro(trayectoria: Tuple[RegistroPaso, ...]) -> Tuple[int, ...]:
     """Construye el multiconjunto B(x) de longitudes de bloques de giros.
 
     Un bloque se compone de acciones H/A ejecutadas en la misma celda.
@@ -150,97 +150,97 @@ def _compute_turn_blocks(trajectory: Tuple[StepRecord, ...]) -> Tuple[int, ...]:
     remanente al finalizar el cromosoma también se cierra (ver docstring
     del módulo).
     """
-    blocks: List[int] = []
-    current_block = 0
-    for rec in trajectory:
-        if rec.gene in ("H", "A"):
-            current_block += 1
-        elif rec.gene == "M" and not rec.collided:
-            blocks.append(current_block)
-            current_block = 0
-        # Q y M fallido: no modifican current_block
-    if current_block > 0:
-        blocks.append(current_block)
-    return tuple(blocks)
+    bloques: List[int] = []
+    bloque_actual = 0
+    for registro in trayectoria:
+        if registro.gen in ("H", "A"):
+            bloque_actual += 1
+        elif registro.gen == "M" and not registro.choco:
+            bloques.append(bloque_actual)
+            bloque_actual = 0
+        # Q y M fallido: no modifican bloque_actual
+    if bloque_actual > 0:
+        bloques.append(bloque_actual)
+    return tuple(bloques)
 
 
-def _compute_post_goal_active(trajectory: Tuple[StepRecord, ...], goal: Position) -> int:
+def _calcular_acciones_post_meta(trayectoria: Tuple[RegistroPaso, ...], llegada: Posicion) -> int:
     """A_meta(x): acciones activas (H, A, M) ejecutadas ya estando en la meta."""
     return sum(
         1
-        for rec in trajectory
-        if rec.position_before == goal and rec.gene in ("H", "A", "M")
+        for registro in trayectoria
+        if registro.posicion_antes == llegada and registro.gen in ("H", "A", "M")
     )
 
 
-def _compute_premature_stop(chromosome: Chromosome, is_valid: bool) -> int:
+def _calcular_detencion_prematura(cromosoma: Cromosoma, es_valido: bool) -> int:
     """Q_prem(x): longitud de la cola final de genes Q, solo si la solución es inválida."""
-    if is_valid:
+    if es_valido:
         return 0
-    count = 0
-    for gene in reversed(chromosome):
-        if gene == "Q":
-            count += 1
+    conteo = 0
+    for gen in reversed(cromosoma):
+        if gen == "Q":
+            conteo += 1
         else:
             break
-    return count
+    return conteo
 
 
-def evaluate_chromosome(
-    chromosome: Chromosome, sim_result: SimulationResult, maze: Maze
-) -> EvaluationResult:
+def evaluar_cromosoma(
+    cromosoma: Cromosoma, resultado_sim: ResultadoSimulacion, laberinto: Laberinto
+) -> ResultadoEvaluacion:
     """Evalúa completamente un cromosoma ya simulado, calculando J(x) y phi(x)."""
-    n = len(chromosome)
-    goal = maze.goal
-    trajectory = sim_result.trajectory
+    n = len(cromosoma)
+    llegada = laberinto.llegada
+    trayectoria = resultado_sim.trayectoria
 
-    D = _compute_manhattan_distance(sim_result.final_position, goal)
-    arrivals = _compute_arrivals(trajectory, goal)
-    tau, is_valid, l_val = _compute_tau(arrivals, trajectory, n)
+    D = _calcular_distancia_manhattan(resultado_sim.posicion_final, llegada)
+    llegadas = _calcular_llegadas(trayectoria, llegada)
+    tau, es_valido, valor_l = _calcular_tau(llegadas, trayectoria, n)
 
-    if is_valid:
+    if es_valido:
         rho = 0
-    elif arrivals:
+    elif llegadas:
         rho = 1
     else:
         rho = 2
 
-    q_intermediate_count = _compute_intermediate_pauses(chromosome)
-    P_Q = PENALTY_INTERMEDIATE_PAUSE * q_intermediate_count
+    conteo_q_intermedio = _calcular_pausas_intermedias(cromosoma)
+    P_Q = PENALIZACION_PAUSA_INTERMEDIA * conteo_q_intermedio
 
-    collision_count = _compute_collisions(trajectory)
-    P_C = PENALTY_COLLISION * collision_count
+    conteo_choques = _calcular_choques(trayectoria)
+    P_C = PENALIZACION_CHOQUE * conteo_choques
 
-    turn_blocks = _compute_turn_blocks(trajectory)
-    P_R = sum(turn_block_penalty(b) for b in turn_blocks)
+    bloques_giro = _calcular_bloques_giro(trayectoria)
+    P_R = sum(penalizacion_bloque_giro(b) for b in bloques_giro)
 
-    post_goal_active_count = _compute_post_goal_active(trajectory, goal)
-    P_A = PENALTY_POST_GOAL_ACTIVE * post_goal_active_count
+    conteo_acciones_post_meta = _calcular_acciones_post_meta(trayectoria, llegada)
+    P_A = PENALIZACION_ACCION_POST_META * conteo_acciones_post_meta
 
-    q_premature_count = _compute_premature_stop(chromosome, is_valid)
-    P_prem = PENALTY_PREMATURE_STOP_PER_Q * q_premature_count
+    conteo_q_prematuro = _calcular_detencion_prematura(cromosoma, es_valido)
+    P_prem = PENALIZACION_DETENCION_PREMATURA_POR_Q * conteo_q_prematuro
 
-    P_inv = 0 if is_valid else PENALTY_GLOBAL_INVALID
+    P_inv = 0 if es_valido else PENALIZACION_GLOBAL_INVALIDA
 
     J = D + tau + P_Q + P_C + P_R + P_A + P_prem + P_inv
     phi = -J
 
-    return EvaluationResult(
-        chromosome=chromosome,
+    return ResultadoEvaluacion(
+        cromosoma=cromosoma,
         n=n,
-        final_position=sim_result.final_position,
-        goal=goal,
+        posicion_final=resultado_sim.posicion_final,
+        llegada=llegada,
         D=D,
-        arrivals=arrivals,
-        l=l_val,
+        llegadas=llegadas,
+        l=valor_l,
         tau=tau,
-        is_valid=is_valid,
+        es_valido=es_valido,
         rho=rho,
-        Q_intermediate_count=q_intermediate_count,
-        collision_count=collision_count,
-        turn_blocks=turn_blocks,
-        post_goal_active_count=post_goal_active_count,
-        Q_premature_count=q_premature_count,
+        conteo_Q_intermedio=conteo_q_intermedio,
+        conteo_choques=conteo_choques,
+        bloques_giro=bloques_giro,
+        conteo_acciones_post_meta=conteo_acciones_post_meta,
+        conteo_Q_prematuro=conteo_q_prematuro,
         P_Q=P_Q,
         P_C=P_C,
         P_R=P_R,
@@ -249,5 +249,5 @@ def evaluate_chromosome(
         P_inv=P_inv,
         J=J,
         phi=phi,
-        trajectory=trajectory,
+        trayectoria=trayectoria,
     )
