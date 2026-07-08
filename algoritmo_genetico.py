@@ -1,24 +1,7 @@
-"""
-Módulo 4: Algoritmo Genético
-==============================
-
-Orquesta el ciclo evolutivo completo durante G generaciones:
-
-1. Ranking lexicográfico por prioridad de factibilidad (rho, J, D, tau).
-2. Elitismo obligatorio del mejor cromosoma global histórico.
-3. Selección por ranking geométrico para los N-1 cupos restantes.
-4. Cruzamiento de un punto.
-5. Mutación independiente por gen.
-6. Reevaluación completa de cada descendiente.
-
-Parámetros configurables externamente: n, pm, N, G, ps, seed.
-"""
 from __future__ import annotations
-
 import random
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
-
 from cargador_laberinto import Laberinto
 from simulador import ACCIONES, Cromosoma, simular_cromosoma
 from evaluador import ResultadoEvaluacion, evaluar_cromosoma
@@ -44,18 +27,15 @@ def validar_parametros(n: int, pm: float, N: int, G: int, ps: float) -> None:
 
 
 def evaluar(cromosoma: Cromosoma, laberinto: Laberinto) -> ResultadoEvaluacion:
-    """Simula y evalúa un cromosoma sobre el laberinto dado (evaluación completa)."""
     resultado_sim = simular_cromosoma(cromosoma, laberinto)
     return evaluar_cromosoma(cromosoma, resultado_sim, laberinto)
 
 
 def cromosoma_aleatorio(n: int, rng: random.Random) -> Cromosoma:
-    """Genera un cromosoma aleatorio de longitud n muestreando uniformemente de A."""
     return tuple(rng.choice(ACCIONES) for _ in range(n))
 
 
 def _probabilidades_acumuladas(N: int, ps: float) -> List[float]:
-    """C_i = (1 - (1-ps)^i) / (1 - (1-ps)^N), para i = 1, ..., N."""
     denominador = 1.0 - (1.0 - ps) ** N
     return [(1.0 - (1.0 - ps) ** i) / denominador for i in range(1, N + 1)]
 
@@ -63,22 +43,15 @@ def _probabilidades_acumuladas(N: int, ps: float) -> List[float]:
 def seleccionar_padre(
     poblacion_ordenada: List[Cromosoma], probs_acumuladas: List[float], rng: random.Random
 ) -> Cromosoma:
-    """Selecciona un padre: i = min{j : u <= C_j}, con u ~ U(0,1)."""
     u = rng.random()
     for cromosoma, c_i in zip(poblacion_ordenada, probs_acumuladas):
         if u <= c_i:
             return cromosoma
-    return poblacion_ordenada[-1]  # salvaguarda numérica ante redondeo de punto flotante
-
+    return poblacion_ordenada[-1]  
 
 def cruce_un_punto(
     padre1: Cromosoma, padre2: Cromosoma, rng: random.Random
 ) -> Tuple[Cromosoma, Cromosoma]:
-    """Cruzamiento de un punto: c en {1, ..., n-1}.
-
-    x' = (g_1,...,g_c, h_{c+1},...,h_n)
-    y' = (h_1,...,h_c, g_{c+1},...,g_n)
-    """
     n = len(padre1)
     c = rng.randint(1, n - 1)
     hijo1 = padre1[:c] + padre2[c:]
@@ -87,8 +60,6 @@ def cruce_un_punto(
 
 
 def mutar(cromosoma: Cromosoma, pm: float, rng: random.Random) -> Cromosoma:
-    """Mutación independiente por gen: cada gen muta con probabilidad pm,
-    reemplazándose de forma uniforme por una de las otras 3 acciones."""
     genes = list(cromosoma)
     for k in range(len(genes)):
         if rng.random() < pm:
@@ -99,8 +70,6 @@ def mutar(cromosoma: Cromosoma, pm: float, rng: random.Random) -> Cromosoma:
 
 @dataclass
 class ResultadoAG:
-    """Resultado completo de una corrida del algoritmo genético."""
-
     laberinto: Laberinto
     n: int
     pm: float
@@ -117,7 +86,6 @@ class ResultadoAG:
     todos_evaluados: Dict[Cromosoma, ResultadoEvaluacion] = field(default_factory=dict)
 
     def cromosomas_unicos_mejores(self) -> Dict[Cromosoma, ResultadoEvaluacion]:
-        """X* = {x en U : J(x) = J*}: cromosomas únicos que empatan en el mejor J."""
         j_estrella = self.mejor_evaluacion.J
         return {c: ev for c, ev in self.todos_evaluados.items() if ev.J == j_estrella}
 
@@ -125,13 +93,6 @@ class ResultadoAG:
 def ejecutar_algoritmo_genetico(
     laberinto: Laberinto, n: int, pm: float, N: int, G: int, ps: float, semilla: int
 ) -> ResultadoAG:
-    """Ejecuta el ciclo evolutivo completo y retorna un ResultadoAG con historial y auditoría.
-
-    Convención de generaciones: la generación 1 corresponde a la población
-    inicial aleatoria (ya evaluada y clasificada); las generaciones 2..G se
-    obtienen aplicando elitismo, selección, cruzamiento y mutación sobre la
-    generación anterior. Se registran exactamente G puntos de historial.
-    """
     validar_parametros(n, pm, N, G, ps)
     rng = random.Random(semilla)
 
@@ -145,19 +106,17 @@ def ejecutar_algoritmo_genetico(
     historial_proporcion_valida: List[float] = []
     todos_evaluados: Dict[Cromosoma, ResultadoEvaluacion] = {}
 
-    num_descendientes_necesarios = N - 1  # siempre par, dado que N es impar (validado arriba)
+    num_descendientes_necesarios = N - 1 
 
     for generacion in range(1, G + 1):
-        # Registrar todos los cromosomas de esta generación en el conjunto U.
+        
         for cromosoma, ev in zip(poblacion, evaluaciones):
             todos_evaluados.setdefault(cromosoma, ev)
 
-        # 1) Ranking lexicográfico (rho, J, D, tau): de mejor a peor.
         orden = sorted(range(N), key=lambda idx: evaluaciones[idx].clave_ranking())
         poblacion_ordenada = [poblacion[i] for i in orden]
         evaluaciones_ordenadas = [evaluaciones[i] for i in orden]
 
-        # 2) Actualización del mejor cromosoma global histórico.
         mejor_cromosoma_actual = poblacion_ordenada[0]
         mejor_evaluacion_actual = evaluaciones_ordenadas[0]
         if (
@@ -172,9 +131,7 @@ def ejecutar_algoritmo_genetico(
         historial_proporcion_valida.append(conteo_validos / N)
 
         if generacion == G:
-            break  # última generación: no es necesario generar descendencia adicional
-
-        # 3) Selección por ranking geométrico + 4) Cruzamiento + 5) Mutación.
+            break  
         probs_acumuladas = _probabilidades_acumuladas(N, ps)
         descendencia: List[Cromosoma] = []
         for _ in range(num_descendientes_necesarios // 2):
@@ -186,11 +143,9 @@ def ejecutar_algoritmo_genetico(
             descendencia.append(hijo1)
             descendencia.append(hijo2)
 
-        # Elitismo obligatorio: el mejor global pasa sin modificaciones (no se reevalúa,
-        # ya que su evaluación es determinista y no ha cambiado).
         poblacion_siguiente = [mejor_cromosoma_global] + descendencia
         evaluaciones_siguiente = [mejor_evaluacion_global] + [
-            evaluar(c, laberinto) for c in descendencia  # 6) Reevaluación completa por descendiente.
+            evaluar(c, laberinto) for c in descendencia  
         ]
 
         poblacion, evaluaciones = poblacion_siguiente, evaluaciones_siguiente

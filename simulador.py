@@ -1,21 +1,6 @@
-"""
-Módulo 2: Motor de Ejecución (Simulador)
-==========================================
-
-Ejecuta secuencialmente un cromosoma x = (g_1, ..., g_n) sobre un laberinto,
-partiendo desde la posición de salida mirando hacia el Sur, aplicando las
-reglas de giro, avance y quietud definidas en la pauta.
-
-Alfabeto de acciones: A = {H, A, M, Q}
-Direcciones:          D = {N, E, S, O}
-Vectores de desplazamiento:
-    v_N = (-1, 0), v_E = (0, 1), v_S = (1, 0), v_O = (0, -1)
-"""
 from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import List, Tuple
-
 from cargador_laberinto import Laberinto, Posicion
 
 Cromosoma = Tuple[str, ...]
@@ -33,16 +18,13 @@ DIRECCION_INICIAL = "S"
 
 @dataclass(frozen=True)
 class RegistroPaso:
-    """Registro auditable de un paso t de ejecución del cromosoma."""
-
-    indice_paso: int  # t, 1-indexado (para reportes)
+    indice_paso: int  
     gen: str
-    posicion_antes: Posicion  # p_{t-1}
-    posicion_despues: Posicion  # p_t
-    direccion_antes: str  # d_{t-1}
-    direccion_despues: str  # d_t
-    choco: bool  # True si el gen fue M y el intento de avance falló
-
+    posicion_antes: Posicion  
+    posicion_despues: Posicion 
+    direccion_antes: str  
+    direccion_despues: str  
+    choco: bool 
 
 @dataclass(frozen=True)
 class ResultadoSimulacion:
@@ -62,16 +44,6 @@ def _girar_antihorario(direccion: str) -> str:
 
 
 def simular_cromosoma(cromosoma: Cromosoma, laberinto: Laberinto) -> ResultadoSimulacion:
-    """Simula la ejecución completa de un cromosoma sobre el laberinto dado.
-
-    p_0 = s (salida), d_0 = S (sur). Para cada gen g_t:
-      - H: gira 90° horario, posición no cambia.
-      - A: gira 90° antihorario, posición no cambia.
-      - Q: no cambia posición ni dirección.
-      - M: calcula p~_t = p_{t-1} + v_{d_{t-1}}; si es transitable y está
-           dentro de límites, avanza (p_t = p~_t); si no, p_t = p_{t-1}
-           y se registra un choque.
-    """
     posicion: Posicion = laberinto.salida
     direccion = DIRECCION_INICIAL
     trayectoria: List[RegistroPaso] = []

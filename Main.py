@@ -1,21 +1,9 @@
 """
-Punto de Entrada Principal
-=============================
-Algoritmo Genético para la Resolución de Laberintos — INFO-1159
-Universidad Católica de Temuco
-
-Uso:
-    python main.py --csv laberinto.csv --n 40 --pm 0.15 --pop 51 \
-                    --gen 200 --ps 0.2 --seed 42
-
-Todos los parámetros son recibidos externamente, sin valores fijados
-rígidamente en la lógica principal.
+python main.py --csv laberinto.csv --n 40 --pm 0.15 --pop 51 --gen 200 --ps 0.2 --seed 42
 """
 from __future__ import annotations
-
 import argparse
 import sys
-
 from cargador_laberinto import cargar_laberinto_csv, ErrorValidacionLaberinto
 from algoritmo_genetico import ejecutar_algoritmo_genetico, ErrorParametroAG
 from visualizacion import generar_reporte_completo

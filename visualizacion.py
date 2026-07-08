@@ -1,25 +1,7 @@
-"""
-Módulo 5: Resultados y Visualización
-=======================================
-
-Genera y despliega, usando Matplotlib:
-
-  - Gráfica 1: mejor valor global de J(x) por generación, en escala logarítmica.
-  - Gráfica 2: proporción de soluciones válidas en la población por generación.
-  - Consola/Texto: cromosomas únicos con el mejor valor objetivo y sus pasos.
-  - Consola/Auditoría: trayectoria paso a paso del/los mejor(es) cromosoma(s).
-
-Convención de coordenadas para la auditoría: se reportan en formato (X, Y),
-donde X es la columna del mapa e Y es la fila, ambas en notación 1-indexada
-para ser consistentes con la notación matemática (i, j) de la pauta.
-"""
 from __future__ import annotations
-
 import os
 from typing import Optional
-
 import matplotlib.pyplot as plt
-
 from evaluador import ResultadoEvaluacion
 from algoritmo_genetico import Cromosoma, ResultadoAG
 from cargador_laberinto import Laberinto
